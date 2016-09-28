@@ -234,6 +234,9 @@ namespace JASidePanels
         public nfloat RightFixedWidth { get; set; }
         public CGRect CenterPanelRestingFrame;
 
+        public bool ShowShadow { get; set; }
+        public bool ShowStyling { get; set; }
+
         private bool centerPanelHidden;
         public bool CenterPanelHidden 
         { 
@@ -390,6 +393,8 @@ namespace JASidePanels
             this.ShouldDelegateAutorotateToVisiblePanel = true;
             this.AllowLeftSwipe = true;
             this.AllowRightSwipe = false;
+            this.ShowShadow = true;
+            this.ShowStyling = true;
         }
 
         private void ConfigureContainers()
@@ -425,21 +430,24 @@ namespace JASidePanels
 
         private void StyleContainer(UIView container, bool animate, float duration)
         {
-            UIBezierPath shadowPath = UIBezierPath.FromRoundedRect(container.Bounds, 0);
-            if (animate)
+            if (this.ShowShadow) 
             {
-                CABasicAnimation animation = CABasicAnimation.FromKeyPath("shadowPath");
-                animation.From = NSValue.FromObject(container.Layer.ShadowPath);
-                animation.To = NSValue.FromObject(shadowPath.CGPath);
-                animation.Duration = duration;
+                UIBezierPath shadowPath = UIBezierPath.FromRoundedRect(container.Bounds, 0);
+                if (animate)
+                {
+                    CABasicAnimation animation = CABasicAnimation.FromKeyPath("shadowPath");
+                    animation.From = NSValue.FromObject(container.Layer.ShadowPath);
+                    animation.To = NSValue.FromObject(shadowPath.CGPath);
+                    animation.Duration = duration;
 
-                container.Layer.AddAnimation(animation, "shadowPath");
+                    container.Layer.AddAnimation(animation, "shadowPath");
+                }
+                container.Layer.ShadowPath = shadowPath.CGPath;
+                container.Layer.ShadowColor = UIColor.Black.CGColor;
+                container.Layer.ShadowRadius = 10.0f;
+                container.Layer.ShadowOpacity = 0.75f;
+                container.ClipsToBounds = false;   
             }
-            container.Layer.ShadowPath = shadowPath.CGPath;
-            container.Layer.ShadowColor = UIColor.Black.CGColor;
-            container.Layer.ShadowRadius = 10.0f;
-            container.Layer.ShadowOpacity = 0.75f;
-            container.ClipsToBounds = false;
         }
 
         private void SwapCenter(UIViewController previous, JASidePanelState previousState, UIViewController next)
@@ -487,8 +495,11 @@ namespace JASidePanels
 
         public virtual void StylePanel(UIView panel)
         {
-            panel.Layer.CornerRadius = 6;
-            panel.ClipsToBounds = true;
+            if (this.ShowStyling)
+            {
+                panel.Layer.CornerRadius = 6;
+                panel.ClipsToBounds = true;   
+            }
         }
 
         private void PlaceButtonForLeftPanel()

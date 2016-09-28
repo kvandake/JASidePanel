@@ -18,6 +18,8 @@ namespace test
 		public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
 		{
             this.controller = new JASidePanelController();
+            //this.controller.ShowShadow = false;
+            this.controller.ShowStyling = false;
             this.controller.ShouldDelegateAutorotateToVisiblePanel = false;
             this.controller.LeftPanel = new UIViewController()
             {
