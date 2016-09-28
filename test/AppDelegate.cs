@@ -34,6 +34,7 @@ namespace test
             this.controller.CenterPanel = new UINavigationController(new MyViewController());
             this.controller.LeftBarButtonItem = new UIBarButtonItem(UIBarButtonSystemItem.Camera, (sender, e) => this.controller.ToggleLeftPanel());
 
+            ((UINavigationController)this.controller.CenterPanel).ViewControllers[0].NavigationItem.RightBarButtonItem = new UIBarButtonItem(UIBarButtonSystemItem.Cancel, (sender, e) => { });
 
             this.Window = new UIWindow(UIScreen.MainScreen.Bounds);
             this.Window.RootViewController = controller;
