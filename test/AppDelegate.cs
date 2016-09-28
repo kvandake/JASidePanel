@@ -18,8 +18,10 @@ namespace test
 		public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
 		{
             this.controller = new JASidePanelController();
-            //this.controller.ShowShadow = false;
-            this.controller.ShowStyling = false;
+            this.controller.ShowShadow = true;
+            this.controller.ShadowRadius = 50f;
+            this.controller.ShadowOpacity = 0.5f;
+            //this.controller.ShowStyling = false;
             this.controller.ShouldDelegateAutorotateToVisiblePanel = false;
             this.controller.LeftPanel = new UIViewController()
             {
@@ -30,6 +32,8 @@ namespace test
             };
 
             this.controller.CenterPanel = new UINavigationController(new MyViewController());
+            this.controller.LeftBarButtonItem = new UIBarButtonItem(UIBarButtonSystemItem.Camera, (sender, e) => this.controller.ToggleLeftPanel());
+
 
             this.Window = new UIWindow(UIScreen.MainScreen.Bounds);
             this.Window.RootViewController = controller;

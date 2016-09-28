@@ -233,9 +233,53 @@ namespace JASidePanels
         public nfloat LeftFixedWidth { get; set; }
         public nfloat RightFixedWidth { get; set; }
         public CGRect CenterPanelRestingFrame;
+        public nfloat ShadowRadius { get; set; }
+        public float ShadowOpacity { get; set; }
 
         public bool ShowShadow { get; set; }
         public bool ShowStyling { get; set; }
+
+        private UIImage defaultImage;
+        public UIImage DefaultImage 
+        { 
+            get 
+            {
+                if (this.defaultImage == null)
+                {
+                    UIGraphics.BeginImageContextWithOptions(new CGSize(20, 13), false, 0);
+                    UIColor.Black.SetFill();
+                    UIBezierPath.FromRect(new CGRect(0, 0, 20, 1)).Fill();
+                    UIBezierPath.FromRect(new CGRect(0, 5, 20, 1)).Fill();
+                    UIBezierPath.FromRect(new CGRect(0, 10, 20, 1)).Fill();
+                    UIColor.White.SetFill();
+                    UIBezierPath.FromRect(new CGRect(0, 1, 20, 2)).Fill();
+                    UIBezierPath.FromRect(new CGRect(0, 6, 20, 2)).Fill();
+                    UIBezierPath.FromRect(new CGRect(0, 11, 20, 2)).Fill();
+                    this.defaultImage = UIGraphics.GetImageFromCurrentImageContext();
+                    UIGraphics.EndImageContext();
+                }
+                return this.defaultImage;
+            }
+        }
+
+        private UIBarButtonItem leftBarButtonItem;
+        public UIBarButtonItem LeftBarButtonItem
+        {
+            get 
+            {
+                if (this.leftBarButtonItem == null)
+                {
+                    this.leftBarButtonItem = new UIBarButtonItem(this.DefaultImage, 
+                                                                 UIBarButtonItemStyle.Plain, 
+                                                                 (s, e) => this.ToggleLeftPanel());
+                }
+                return this.leftBarButtonItem;
+            }
+            set 
+            {
+                this.leftBarButtonItem = value;
+            }
+        } 
 
         private bool centerPanelHidden;
         public bool CenterPanelHidden 
@@ -377,12 +421,14 @@ namespace JASidePanels
         private void Init()
         {
             this.Style = JASidePanelStyle.SingleActive;
-            this.LeftGapPercentage = 0.8f;
+            this.LeftGapPercentage = 0.9f;
             this.RightGapPercentage = 0.8f;
             this.MinimumMovePercentage = 0.15f;
             this.MaximumAnimationDuration = 0.2f;
             this.BounceDuration = 0.1f;
             this.BouncePercentage = 0.075f;
+            this.ShadowRadius = 10f;
+            this.ShadowOpacity = 0.75f;
             this.PanningLimitedToTopViewController = true;
             this.RecognizesPanGesture = true;
             this.AllowLeftOverpan = true;
@@ -444,8 +490,8 @@ namespace JASidePanels
                 }
                 container.Layer.ShadowPath = shadowPath.CGPath;
                 container.Layer.ShadowColor = UIColor.Black.CGColor;
-                container.Layer.ShadowRadius = 10.0f;
-                container.Layer.ShadowOpacity = 0.75f;
+                container.Layer.ShadowRadius = this.ShadowRadius;
+                container.Layer.ShadowOpacity = this.ShadowOpacity;
                 container.ClipsToBounds = false;   
             }
         }
@@ -521,16 +567,10 @@ namespace JASidePanels
                     && buttonController.NavigationItem != null 
                     && buttonController.NavigationItem.LeftBarButtonItem == null)
                 {
-                    buttonController.NavigationItem.LeftBarButtonItem = this.LeftButtonForCenterPanel();
+                    buttonController.NavigationItem.LeftBarButtonItem = this.LeftBarButtonItem;
                 }
             }
         }
-
-        //use for action ToggleLeftPanel
-        public virtual UIBarButtonItem LeftButtonForCenterPanel()
-        {
-            return new UIBarButtonItem(UIBarButtonSystemItem.Save, (s, e) => this.ToggleLeftPanel());
-		}
 
 		public void ToggleLeftPanel() 
 		{
