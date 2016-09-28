@@ -1,4 +1,5 @@
 ﻿using Foundation;
+using JASidePanels;
 using UIKit;
 
 namespace test
@@ -12,9 +13,25 @@ namespace test
 
 		public override UIWindow Window { get; set; }
 
+        JASidePanelController controller;
+
 		public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
 		{
-			
+            this.controller = new JASidePanelController();
+            this.controller.ShouldDelegateAutorotateToVisiblePanel = false;
+            this.controller.LeftPanel = new UIViewController()
+            {
+                View = new UIView
+                {
+                    BackgroundColor = UIColor.Orange
+                }
+            };
+
+            this.controller.CenterPanel = new UINavigationController(new MyViewController());
+
+            this.Window = new UIWindow(UIScreen.MainScreen.Bounds);
+            this.Window.RootViewController = controller;
+            this.Window.MakeKeyAndVisible();
 			return true;
 		}
 
