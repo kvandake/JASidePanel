@@ -9,6 +9,22 @@ namespace JASidePanels
     public class JASidePanelController : UIViewController, IUIGestureRecognizerDelegate
     {
         private UIViewController leftPanel;
+        private UIViewController rightPanel;
+        private UIViewController centerPanel;
+        private UIView tapView;
+        private JASidePanelStyle style;
+        private JASidePanelState state;
+        private UIImage defaultImage;
+        private UIBarButtonItem leftBarButtonItem;
+        private bool centerPanelHidden;
+        private IDisposable centerViewNotificationToken;
+        private IDisposable centerViewControllerNotificationToken;
+
+        public JASidePanelController()
+        {
+            this.Initialize();
+        }
+
         public UIViewController LeftPanel 
         { 
             get { return this.leftPanel; }
@@ -36,7 +52,6 @@ namespace JASidePanels
             }
         }
 
-        private UIViewController centerPanel;
         public UIViewController CenterPanel
         {
             get { return this.centerPanel; }
@@ -45,15 +60,15 @@ namespace JASidePanels
                 var previous = this.centerPanel;
                 if (this.centerPanel != value)
                 {
-                    this.centerPanel?.RemoveObserver(this, "view");
-                    this.centerPanel?.RemoveObserver(this, "viewControllers");
+                    this.centerViewNotificationToken?.Dispose();
+                    this.centerViewControllerNotificationToken?.Dispose();
                     this.centerPanel = value;
-                    this.centerPanel.AddObserver("viewControllers", 0, (obj) => 
+                    this.centerViewControllerNotificationToken = this.centerPanel.AddObserver("viewControllers", 0, (obj) => 
                     {
                         this.PlaceButtonForLeftPanel();
                     });
 
-                    this.centerPanel.AddObserver("view", NSKeyValueObservingOptions.Initial, (obj) => 
+                    this.centerViewNotificationToken = this.centerPanel.AddObserver("view", NSKeyValueObservingOptions.Initial, (obj) => 
                     {
                         if (this.centerPanel.IsViewLoaded && this.RecognizesPanGesture)
                         {
@@ -77,7 +92,7 @@ namespace JASidePanels
                     // update the state immediately to prevent user interaction on the side panels while animating
                     JASidePanelState previousState = this.State;
                     this.State = JASidePanelState.CenterVisible;
-                    UIView.Animate(0.2f, () =>
+                    UIView.AnimateNotify(0.2f, () =>
                     {
                         if (this.BounceOnCenterPanelChange)
                         {
@@ -88,7 +103,7 @@ namespace JASidePanels
                         }
 
                         this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame;
-                    }, () =>
+                    }, finished =>
                     {
                         this.SwapCenter(previous, previousState, this.centerPanel);
                         this.ShowCenterPanel(true, false);
@@ -97,7 +112,6 @@ namespace JASidePanels
             }
         }
 
-        private UIViewController rightPanel;
         public UIViewController RightPanel 
         { 
             get { return this.rightPanel; }
@@ -126,7 +140,6 @@ namespace JASidePanels
 
         public UIViewController VisiblePanel { get; set; }
 
-        private UIView tapView;
         public UIView TapView 
         {
             get { return this.tapView; }
@@ -155,11 +168,6 @@ namespace JASidePanels
 
         public CGPoint LocationBeforePan { get; set; }
 
-        private UIView LeftPanelContainer { get; set; }
-        private UIView CenterPanelContainer { get; set; }
-        private UIView RightPanelContainer { get; set; }
-
-        private JASidePanelStyle style;
         public JASidePanelStyle Style
         {
             get { return this.style; }
@@ -177,7 +185,7 @@ namespace JASidePanels
             }
         }
 
-        private JASidePanelState state;
+
         public JASidePanelState State
         {
             get { return this.state; }
@@ -239,7 +247,6 @@ namespace JASidePanels
         public bool ShowShadow { get; set; }
         public bool ShowStyling { get; set; }
 
-        private UIImage defaultImage;
         public UIImage DefaultImage 
         { 
             get 
@@ -262,7 +269,6 @@ namespace JASidePanels
             }
         }
 
-        private UIBarButtonItem leftBarButtonItem;
         public UIBarButtonItem LeftBarButtonItem
         {
             get 
@@ -281,7 +287,6 @@ namespace JASidePanels
             }
         } 
 
-        private bool centerPanelHidden;
         public bool CenterPanelHidden 
         { 
             get { return this.centerPanelHidden; }
@@ -326,10 +331,9 @@ namespace JASidePanels
             }
         }
 
-        public JASidePanelController()
-        {
-            this.Init();
-        }
+        private UIView LeftPanelContainer { get; set; }
+        private UIView CenterPanelContainer { get; set; }
+        private UIView RightPanelContainer { get; set; }
 
         public override void ViewDidLoad()
         {
@@ -418,7 +422,159 @@ namespace JASidePanels
 
         }
 
-        private void Init()
+        public virtual void StylePanel(UIView panel)
+        {
+            if (this.ShowStyling)
+            {
+                panel.Layer.CornerRadius = 6;
+                panel.ClipsToBounds = true;
+            }
+        }
+
+        public void ToggleLeftPanel()
+        {
+            if (this.State == JASidePanelState.LeftVisible)
+            {
+                this.ShowCenterPanel(true, false);
+            }
+            else if (this.State == JASidePanelState.CenterVisible)
+            {
+                this.ShowLeftPanel(true, false);
+            }
+        }
+
+        public void ShowRightPanel(bool animated, bool shouldBounce)
+        {
+            this.State = JASidePanelState.RightVisible;
+            this.LoadRightPanel();
+            this.AdjustCenterFrame();
+            if (animated)
+            {
+                this.AnimateCenterPanel(shouldBounce, null);
+            }
+            else
+            {
+                this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame;
+                this.StyleContainer(this.CenterPanelContainer, false, 0);
+
+                if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
+                {
+                    this.LayoutSideContainers(false, 0);
+                }
+            }
+
+            if (this.Style == JASidePanelStyle.SingleActive)
+            {
+                this.TapView = new UIView();
+            }
+
+            this.ToggleScrollsToTopForCenter(false, false, true);
+        }
+
+        public void ShowCenterPanel(bool animated, bool shouldBounce)
+        {
+            this.State = JASidePanelState.CenterVisible;
+
+
+            this.AdjustCenterFrame();
+
+            if (animated)
+            {
+                this.AnimateCenterPanel(shouldBounce, () =>
+                {
+                    this.LeftPanelContainer.Hidden = true;
+                    this.UnloadPanels();
+                });
+            }
+            else
+            {
+                this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame;
+                this.StyleContainer(this.CenterPanelContainer, false, 0);
+                if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
+                {
+                    this.LayoutSideContainers(false, 0);
+                }
+
+                this.LeftPanelContainer.Hidden = true;
+                this.UnloadPanels();
+            }
+
+            this.TapView = null;
+            this.ToggleScrollsToTopForCenter(true, false, false);
+        }
+
+        public void ShowLeftPanel(bool animate, bool shouldBounce)
+        {
+            this.State = JASidePanelState.LeftVisible;
+            this.LoadLeftPanel();
+
+            this.AdjustCenterFrame();
+
+            if (animate)
+            {
+                this.AnimateCenterPanel(shouldBounce, null);
+            }
+            else
+            {
+                this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame;
+                this.StyleContainer(this.CenterPanelContainer, false, 0);
+                if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
+                {
+                    this.LayoutSideContainers(false, 0);
+                }
+
+            }
+
+            if (this.Style == JASidePanelStyle.SingleActive)
+            {
+                this.TapView = new UIView();
+            }
+
+            this.ToggleScrollsToTopForCenter(false, true, false);
+        }
+
+        [Export("gestureRecognizerShouldBegin:")]
+        public bool ShouldBegin(UIGestureRecognizer recognizer)
+        {
+            if (recognizer.View == this.TapView)
+            {
+                return true;
+            }
+            else if (this.PanningLimitedToTopViewController && !this.IsOnTopLevelViewController(this.CenterPanel))
+            {
+                return false;
+            }
+            else if (recognizer is UIPanGestureRecognizer)
+            {
+                var pan = (UIPanGestureRecognizer)recognizer;
+                var translate = pan.TranslationInView(this.CenterPanelContainer);
+
+                //determine if right swipe is allowed
+                if (translate.X < 0 && !this.AllowRightSwipe)
+                {
+                    return false;
+                }
+
+                //determine is left swipe is allowed
+                if (translate.X > 0 && !this.AllowLeftSwipe)
+                {
+                    return false;
+                }
+
+                bool possible = translate.X != 0 && (Math.Abs(translate.Y) / Math.Abs(translate.X)) < 1.0f;
+                if (possible
+                    && (translate.X > 0 && this.LeftPanel != null)
+                    || (translate.X < 0 && this.RightPanel != null))
+                {
+                    return true;
+                }
+
+            }
+
+            return false;
+        }
+
+        private void Initialize()
         {
             this.Style = JASidePanelStyle.SingleActive;
             this.LeftGapPercentage = 0.9f;
@@ -435,7 +591,7 @@ namespace JASidePanels
             this.AllowRightOverpan = false;
             this.BounceOnSidePanelOpen = true;
             this.BounceOnSidePanelClose = false;
-            this.BounceOnCenterPanelChange = true;
+            this.BounceOnCenterPanelChange = false;
             this.ShouldDelegateAutorotateToVisiblePanel = true;
             this.AllowLeftSwipe = true;
             this.AllowRightSwipe = false;
@@ -539,15 +695,6 @@ namespace JASidePanels
             this.StylePanel(this.CenterPanel.View);
         }
 
-        public virtual void StylePanel(UIView panel)
-        {
-            if (this.ShowStyling)
-            {
-                panel.Layer.CornerRadius = 6;
-                panel.ClipsToBounds = true;   
-            }
-        }
-
         private void PlaceButtonForLeftPanel()
         {
             if (this.LeftPanel != null)
@@ -571,18 +718,6 @@ namespace JASidePanels
                 }
             }
         }
-
-		public void ToggleLeftPanel() 
-		{
-			if (this.State == JASidePanelState.LeftVisible)
-			{
-				this.ShowCenterPanel(true, false);
-		    } 
-			else if (this.State == JASidePanelState.CenterVisible) 
-			{
-		        this.ShowLeftPanel(true, false);
-		    }
-		}
 
         private void ToggleScrollsToTopForCenter(bool center, bool left, bool right)
         {
@@ -613,65 +748,6 @@ namespace JASidePanels
             }
             return false;
         }
-
-        public void ShowRightPanel(bool animated, bool shouldBounce)
-        {
-            this.State = JASidePanelState.RightVisible;
-            this.LoadRightPanel();
-            this.AdjustCenterFrame();
-            if (animated) 
-            {
-                this.AnimateCenterPanel(shouldBounce, null);
-            } 
-            else 
-            {
-                this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame; 
-                this.StyleContainer(this.CenterPanelContainer, false, 0);
-
-                if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
-                {
-                    this.LayoutSideContainers(false,0);
-                }
-            }
-            
-            if (this.Style == JASidePanelStyle.SingleActive) 
-            {
-                this.TapView = new UIView();
-            }
-
-            this.ToggleScrollsToTopForCenter(false, false, true);
-        }
-
-        public void ShowCenterPanel(bool animated, bool shouldBounce)
-		{
-			this.State = JASidePanelState.CenterVisible;
-
-
-			this.AdjustCenterFrame();
-    
-		    if (animated) {
-		        this.AnimateCenterPanel(shouldBounce, ()=>
-				{
-					this.LeftPanelContainer.Hidden = true;
-					this.UnloadPanels();
-				});
-		    } 
-			else 
-			{
-		        this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame;
-				this.StyleContainer(this.CenterPanelContainer, false, 0);
-		        if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels) 
-				{
-					this.LayoutSideContainers(false, 0);
-		        }
-
-		        this.LeftPanelContainer.Hidden = true;
-		        this.UnloadPanels();
-		    }
-		    
-			this.TapView = null;
-			this.ToggleScrollsToTopForCenter(true, false, false);
-		}
 
         private CGRect AdjustCenterFrame() 
 		{
@@ -704,36 +780,6 @@ namespace JASidePanels
 			this.CenterPanelRestingFrame = frame;
 			return this.CenterPanelRestingFrame;
 		}
-
-        public void ShowLeftPanel(bool animate, bool shouldBounce)
-        {
-            this.State = JASidePanelState.LeftVisible;
-            this.LoadLeftPanel();
-
-            this.AdjustCenterFrame();
-
-            if (animate)
-            {
-                this.AnimateCenterPanel(shouldBounce, null);
-            }
-            else
-            {
-                this.CenterPanelContainer.Frame = this.CenterPanelRestingFrame;
-                this.StyleContainer(this.CenterPanelContainer, false, 0);
-                if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
-                {
-                    this.LayoutSideContainers(false, 0);
-                }
-
-            }
-
-            if (this.Style == JASidePanelStyle.SingleActive)
-            {
-                this.TapView = new UIView();
-            }
-
-            this.ToggleScrollsToTopForCenter(false, true, false);
-        }
 
         private void LoadRightPanel()
         {
@@ -903,47 +949,6 @@ namespace JASidePanels
             panGesture.MaximumNumberOfTouches = 1;
             panGesture.MinimumNumberOfTouches = 1;
             view.AddGestureRecognizer(panGesture);
-        }
-
-        [Export("gestureRecognizerShouldBegin:")]
-        public bool ShouldBegin(UIGestureRecognizer recognizer)
-        {
-            if (recognizer.View == this.TapView)
-            {
-                return true;
-            }
-            else if (this.PanningLimitedToTopViewController && !this.IsOnTopLevelViewController(this.CenterPanel))
-            {
-                return false;
-            }
-            else if (recognizer is UIPanGestureRecognizer)
-            {
-                var pan = (UIPanGestureRecognizer)recognizer;
-                var translate = pan.TranslationInView(this.CenterPanelContainer);
-
-                //determine if right swipe is allowed
-                if (translate.X < 0 && !this.AllowRightSwipe)
-                {
-                    return false;
-                }
-
-                //determine is left swipe is allowed
-                if (translate.X > 0 && !this.AllowLeftSwipe)
-                {
-                    return false;
-                }
-
-                bool possible = translate.X != 0 && (Math.Abs(translate.Y) / Math.Abs(translate.X)) < 1.0f;
-                if (possible 
-                    && (translate.X > 0 && this.LeftPanel != null) 
-                    || (translate.X < 0 && this.RightPanel != null))
-                {
-                    return true;
-                }
-
-            }
-
-            return false;
         }
 
         private void HandlePan(UIPanGestureRecognizer pan)
