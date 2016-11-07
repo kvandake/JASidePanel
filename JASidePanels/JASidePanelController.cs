@@ -946,6 +946,7 @@ namespace JASidePanels
             return false;
         }
 
+        CGRect frameUniq = CGRect.Empty;
         private void HandlePan(UIPanGestureRecognizer pan)
         {
             if (!this.RecognizesPanGesture)
@@ -953,54 +954,65 @@ namespace JASidePanels
                 return;
             }
 
-            if (pan.State == UIGestureRecognizerState.Began)
+            switch (pan.State)
             {
-                this.LocationBeforePan = this.CenterPanelContainer.Frame.Location;
-            }
+                case UIGestureRecognizerState.Began:
+                    this.LocationBeforePan = this.CenterPanelContainer.Frame.Location;
+                    break;
+                    
+                case UIGestureRecognizerState.Changed:
+                    var translate = pan.TranslationInView(this.CenterPanelContainer);
+                    frameUniq = this.CenterPanelRestingFrame;
+                    frameUniq.X += (nfloat)Math.Round(this.CorrectMovement(translate.X));
 
-            var translate = pan.TranslationInView(this.CenterPanelContainer);
-            var frame = this.CenterPanelRestingFrame;
-            frame.X += (nfloat)Math.Round(this.CorrectMovement(translate.X));
-            if (this.Style == JASidePanelStyle.MultipleActive)
-            {
-                frame.Width = this.View.Bounds.Width - frame.X;
-            }
+                    if (frameUniq.X <= 0)
+                    {
+                        this.CenterPanelContainer.Frame = new CGRect(0,
+                                                                     this.CenterPanelContainer.Frame.Y,
+                                                                     this.CenterPanelContainer.Frame.Width,
+                                                                     this.CenterPanelContainer.Frame.Height);
+                        return;
+                    }
 
-            this.CenterPanelContainer.Frame = frame;
+                    if (this.Style == JASidePanelStyle.MultipleActive)
+                    {
+                        frameUniq.Width = this.View.Bounds.Width - frameUniq.X;
+                    }
 
-            if (this.State == JASidePanelState.CenterVisible)
-            {
-                if (frame.X > 0)
-                {
-                    this.LoadLeftPanel();
-                }
-                else if (frame.X < 0)
-                {
-                    this.LoadRightPanel();
-                }
-            }
+                    this.CenterPanelContainer.Frame = frameUniq;
+                    if (this.State == JASidePanelState.CenterVisible)
+                    {
+                        if (frameUniq.X > 0)
+                        {
+                            this.LoadLeftPanel();
+                        }
+                        else if (frameUniq.X < 0)
+                        {
+                            this.LoadRightPanel();
+                        }
+                    }
 
-            if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
-            {
-                this.LayoutSideContainers(false, 0);
-            }
-
-            if (pan.State == UIGestureRecognizerState.Ended)
-            {
-                var deltaX = frame.X - this.LocationBeforePan.X;
-                if (this.ValidateThreshold(deltaX))
-                {
-                    this.CompletePan(deltaX);
-                }
-                else
-                {
+                    if (this.Style == JASidePanelStyle.MultipleActive || this.PushesSidePanels)
+                    {
+                        this.LayoutSideContainers(false, 0);
+                    }
+                    break;
+                    
+                case UIGestureRecognizerState.Ended:
+                    var deltaX = frameUniq.X - this.LocationBeforePan.X;
+                    if (this.ValidateThreshold(deltaX))
+                    {
+                        this.CompletePan(deltaX);
+                    }
+                    else
+                    {
+                        this.UndoPan();
+                    }
+                    break;
+                    
+                case UIGestureRecognizerState.Cancelled:
                     this.UndoPan();
-                }
-
-            }
-            else if (pan.State == UIGestureRecognizerState.Cancelled)
-            {
-                this.UndoPan();
+                    break;
             }
         }
 
